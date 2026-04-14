@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  Search, FileText, X, Scale, Filter, ChevronDown,
-  ArrowLeft, Landmark, Calendar, Tag
+  Search, FileText, X, Scale, Filter,
+  User, Landmark, Calendar, Tag
 } from 'lucide-react';
 import { PdfViewer } from '@/components/PdfViewer';
+import BorderGlow from '@/components/BorderGlow';
 import { buildPdfUrl, parseFacets } from '@/lib/api';
 import type { SearchResult, FacetItem, Facets } from '@/lib/types';
 
@@ -26,26 +27,23 @@ function ResultsContent() {
   const rows = 10;
 
   // Active filters
-  const [filterDikastirio, setFilterDikastirio] = useState<string | null>(searchParams.get('dikastirio'));
-  const [filterEtos, setFilterEtos] = useState<string | null>(searchParams.get('etos'));
-  const [filterKatigoria, setFilterKatigoria] = useState<string | null>(searchParams.get('katigoria'));
+  const [filterDikastirio, setFilterDikastirio] = useState<string[]>(searchParams.getAll('dikastirio'));
+  const [filterEtos, setFilterEtos] = useState<string[]>(searchParams.getAll('etos'));
+  const [filterKatigoria, setFilterKatigoria] = useState<string[]>(searchParams.getAll('katigoria'));
 
   // PDF viewer
   const [activePdfUrl, setActivePdfUrl] = useState<string | null>(null);
   const [activePdfTitle, setActivePdfTitle] = useState<string | null>(null);
 
-  // Collapsed facet sections
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
 
   const doSearch = useCallback(async () => {
-    if (!query.trim()) return;
-
     setLoading(true);
     try {
-      const params = new URLSearchParams({ q: query, rows: String(rows), page: String(page) });
-      if (filterDikastirio) params.set('dikastirio', filterDikastirio);
-      if (filterEtos) params.set('etos', filterEtos);
-      if (filterKatigoria) params.set('katigoria', filterKatigoria);
+      const params = new URLSearchParams({ q: query.trim() || '*', rows: String(rows), page: String(page) });
+      filterDikastirio.forEach(d => params.append('dikastirio', d));
+      filterEtos.forEach(e => params.append('etos', e));
+      filterKatigoria.forEach(k => params.append('katigoria', k));
 
       const res = await fetch(`http://localhost:8000/api/search?${params}`);
       const data = await res.json();
@@ -76,9 +74,9 @@ function ResultsContent() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (query) params.set('q', query);
-    if (filterDikastirio) params.set('dikastirio', filterDikastirio);
-    if (filterEtos) params.set('etos', filterEtos);
-    if (filterKatigoria) params.set('katigoria', filterKatigoria);
+    filterDikastirio.forEach(d => params.append('dikastirio', d));
+    filterEtos.forEach(e => params.append('etos', e));
+    filterKatigoria.forEach(k => params.append('katigoria', k));
     if (page > 0) params.set('page', String(page));
     router.replace(`/results?${params.toString()}`, { scroll: false });
   }, [query, filterDikastirio, filterEtos, filterKatigoria, page, router]);
@@ -110,117 +108,118 @@ function ResultsContent() {
   const toggleFilter = (type: 'dikastirio' | 'etos' | 'katigoria', value: string) => {
     setPage(0);
     if (type === 'dikastirio') {
-      setFilterDikastirio(prev => prev === value ? null : value);
+      setFilterDikastirio(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
     } else if (type === 'etos') {
-      setFilterEtos(prev => prev === value ? null : value);
+      setFilterEtos(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
     } else {
-      setFilterKatigoria(prev => prev === value ? null : value);
+      setFilterKatigoria(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
     }
   };
 
   const clearAllFilters = () => {
-    setFilterDikastirio(null);
-    setFilterEtos(null);
-    setFilterKatigoria(null);
+    setFilterDikastirio([]);
+    setFilterEtos([]);
+    setFilterKatigoria([]);
     setPage(0);
   };
 
-  const hasActiveFilters = filterDikastirio || filterEtos || filterKatigoria;
+  const hasActiveFilters = filterDikastirio.length > 0 || filterEtos.length > 0 || filterKatigoria.length > 0;
   const totalPages = Math.ceil(total / rows);
-
-  const toggleSection = (section: string) => {
-    setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
-  };
 
   const renderFacetSection = (
     title: string,
     icon: React.ReactNode,
     items: FacetItem[],
     type: 'dikastirio' | 'etos' | 'katigoria',
-    activeValue: string | null
-  ) => {
-    const isCollapsed = collapsedSections[type];
-    const displayItems = isCollapsed ? [] : items.slice(0, 8);
-
-    return (
-      <div className="mb-1">
-        <button
-          onClick={() => toggleSection(type)}
-          className="flex items-center justify-between w-full px-3 py-2.5 text-sm font-semibold text-gray-300 hover:bg-[#2a2a2c] rounded-lg transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            {icon}
-            {title}
-          </div>
-          <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-        </button>
-        {!isCollapsed && (
-          <div className="mt-1 space-y-0.5 px-1">
-            {displayItems.map(item => (
-              <button
-                key={item.value}
-                onClick={() => toggleFilter(type, item.value)}
-                className={`flex items-center justify-between w-full px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                  activeValue === item.value
-                    ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                    : 'text-gray-400 hover:bg-[#2a2a2c] hover:text-gray-200'
-                }`}
-              >
-                <span className="truncate">{item.value}</span>
-                <span className={`text-xs ml-2 shrink-0 ${
-                  activeValue === item.value ? 'text-yellow-500' : 'text-gray-600'
-                }`}>
-                  {item.count}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+    activeValues: string[]
+  ) => (
+    <div className="bg-[#151518] border border-gray-800/40 rounded-xl p-3">
+      <div className="flex items-center gap-2 px-2 pb-2 text-sm font-semibold text-gray-300">
+        {icon}
+        {title}
       </div>
-    );
-  };
+      <div className="space-y-0.5">
+        {items.slice(0, 12).map(item => (
+          <button
+            key={item.value}
+            onClick={() => toggleFilter(type, item.value)}
+            className={`flex items-center justify-between w-full px-2 py-1.5 rounded-lg text-sm transition-colors ${
+              activeValues.includes(item.value)
+                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                : 'text-gray-400 hover:bg-[#2a2a2c] hover:text-gray-200'
+            }`}
+          >
+            <span className="truncate">{item.value}</span>
+            <span className={`text-xs ml-2 shrink-0 ${
+              activeValues.includes(item.value) ? 'text-yellow-500' : 'text-gray-600'
+            }`}>
+              {item.count}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-[#0d0d0f] text-white font-sans">
-      {/* Top Search Bar */}
-      <div className="sticky top-0 z-30 bg-[#0d0d0f]/95 backdrop-blur-md border-b border-gray-800/60">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-          <button onClick={() => router.push('/')} className="p-2 hover:bg-[#2a2a2c] rounded-lg transition-colors shrink-0">
-            <ArrowLeft className="w-5 h-5 text-gray-400" />
-          </button>
-          <div className="flex items-center gap-2 shrink-0">
-            <Scale className="w-6 h-6 text-white" />
-            <span className="text-lg font-bold tracking-wider hidden sm:inline">PLACEHOLDER</span>
+    <div className="min-h-screen bg-[#0d0d0f] text-white font-sans relative overflow-x-hidden selection:bg-yellow-500/30">
+      {/* Background Gradients */}
+      <div className="absolute top-[-10%] right-[-5%] w-[800px] h-[800px] bg-yellow-500/10 blur-[150px] rounded-full pointer-events-none" />
+      <div className="absolute top-[20%] left-[-10%] w-[600px] h-[600px] bg-purple-500/10 blur-[150px] rounded-full pointer-events-none" />
+
+      {/* --- NAVBAR --- */}
+      <nav className="sticky top-0 z-30 backdrop-blur-md ">
+        <div className="flex items-center px-8 py-6 max-w-7xl mx-auto">
+          <div className="flex-1 flex items-center gap-3">
+            <Scale className="w-8 h-8 text-white" />
+            <span className="text-xl font-bold tracking-wider">PLACEHOLDER</span>
           </div>
-          <form onSubmit={handleSubmit} className="flex-1 max-w-2xl">
-            <div className="flex items-center bg-[#1a1a1c] border border-gray-800 rounded-full px-4 py-2.5 focus-within:border-yellow-500/50 transition-colors">
-              <Search className="w-4 h-4 text-yellow-500/80 mr-3 shrink-0" />
-              <input
-                type="text"
-                value={inputValue}
-                onChange={e => setInputValue(e.target.value)}
-                placeholder="Αναζήτηση αποφάσεων..."
-                className="flex-1 bg-transparent border-none outline-none text-sm text-white placeholder-gray-500"
-              />
-              {inputValue && (
-                <button type="button" onClick={() => { setInputValue(''); setQuery(''); setResults([]); }} className="p-1 hover:bg-[#333] rounded-full">
-                  <X className="w-3.5 h-3.5 text-gray-400" />
-                </button>
-              )}
-            </div>
-          </form>
+
+          <div className="hidden md:flex bg-[#1a1a1c]/80 backdrop-blur-sm border border-gray-800 rounded-full shadow-lg p-1">
+            <button onClick={() => router.push('/')} className="px-6 py-2.5 rounded-full text-gray-400 hover:text-white transition text-sm font-medium">Αρχική</button>
+            <button className="px-6 py-2.5 rounded-full bg-white text-black text-sm font-medium">Αρχείο</button>
+            <button className="px-6 py-2.5 rounded-full text-gray-400 hover:text-white transition text-sm font-medium">AI Chatbot</button>
+            <button className="px-6 py-2.5 rounded-full text-gray-400 hover:text-white transition text-sm font-medium">N/A</button>
+          </div>
+
+          <div className="flex-1 flex items-center justify-end gap-6">
+            <button className="text-gray-300 hover:text-white transition">
+              <User className="w-5 h-5" />
+            </button>
+          </div>
         </div>
+      </nav>
+
+      {/* Search Bar */}
+      <div className="relative z-10 max-w-2xl mx-auto px-4 pt-8 pb-4">
+        <form onSubmit={handleSubmit}>
+          <div className="flex items-center bg-[#151518] border border-gray-700/50 hover:border-yellow-500/50 focus-within:border-yellow-500/50 rounded-full px-6 py-3.5 shadow-[0_0_30px_rgba(0,0,0,0.5)] transition-all duration-300">
+            <Search className="w-5 h-5 mr-4 text-yellow-500/80" />
+            <input
+              type="text"
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
+              placeholder="Αναζήτηση αποφάσεων, δικαστήρια, θέματα..."
+              className="flex-1 bg-transparent border-none outline-none text-lg text-white placeholder-gray-500"
+            />
+            {inputValue && (
+              <button type="button" onClick={() => { setInputValue(''); setQuery(''); }} className="p-1 hover:bg-[#333] rounded-full">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            )}
+          </div>
+        </form>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 py-6">
         {/* Results info & active filters */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3 flex-wrap">
             <p className="text-sm text-gray-400">
               {loading ? 'Αναζήτηση...' : (
                 total > 0
-                  ? <><span className="text-white font-bold">{total}</span> αποτελέσματα για «<span className="text-yellow-400">{query}</span>»</>
-                  : query ? `Δεν βρέθηκαν αποτελέσματα για «${query}»` : ''
+                  ? <><span className="text-white font-bold">{total}</span> αποτελέσματα{query ? <> για «<span className="text-yellow-400">{query}</span>»</> : ''}</>
+                  : (query || hasActiveFilters) ? `Δεν βρέθηκαν αποτελέσματα${query ? ` για «${query}»` : ''}` : ''
               )}
             </p>
             {hasActiveFilters && (
@@ -234,32 +233,32 @@ function ResultsContent() {
         {/* Active filter pills */}
         {hasActiveFilters && (
           <div className="flex flex-wrap gap-2 mb-4">
-            {filterDikastirio && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-yellow-500/15 text-yellow-400 rounded-full text-xs border border-yellow-500/30">
-                <Landmark className="w-3 h-3" /> {filterDikastirio}
-                <button onClick={() => setFilterDikastirio(null)}><X className="w-3 h-3" /></button>
+            {filterDikastirio.map(d => (
+              <span key={d} className="inline-flex items-center gap-1.5 px-3 py-1 bg-yellow-500/15 text-yellow-400 rounded-full text-xs border border-yellow-500/30">
+                <Landmark className="w-3 h-3" /> {d}
+                <button onClick={() => setFilterDikastirio(prev => prev.filter(v => v !== d))}><X className="w-3 h-3" /></button>
               </span>
-            )}
-            {filterKatigoria && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-yellow-500/15 text-yellow-400 rounded-full text-xs border border-yellow-500/30">
-                <Tag className="w-3 h-3" /> {filterKatigoria}
-                <button onClick={() => setFilterKatigoria(null)}><X className="w-3 h-3" /></button>
+            ))}
+            {filterKatigoria.map(k => (
+              <span key={k} className="inline-flex items-center gap-1.5 px-3 py-1 bg-yellow-500/15 text-yellow-400 rounded-full text-xs border border-yellow-500/30">
+                <Tag className="w-3 h-3" /> {k}
+                <button onClick={() => setFilterKatigoria(prev => prev.filter(v => v !== k))}><X className="w-3 h-3" /></button>
               </span>
-            )}
-            {filterEtos && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-yellow-500/15 text-yellow-400 rounded-full text-xs border border-yellow-500/30">
-                <Calendar className="w-3 h-3" /> {filterEtos}
-                <button onClick={() => setFilterEtos(null)}><X className="w-3 h-3" /></button>
+            ))}
+            {filterEtos.map(e => (
+              <span key={e} className="inline-flex items-center gap-1.5 px-3 py-1 bg-yellow-500/15 text-yellow-400 rounded-full text-xs border border-yellow-500/30">
+                <Calendar className="w-3 h-3" /> {e}
+                <button onClick={() => setFilterEtos(prev => prev.filter(v => v !== e))}><X className="w-3 h-3" /></button>
               </span>
-            )}
+            ))}
           </div>
         )}
 
         <div className="flex gap-6">
           {/* Sidebar - Facets */}
           <aside className="hidden lg:block w-64 shrink-0">
-            <div className="sticky top-[76px] bg-[#151518] border border-gray-800/60 rounded-2xl p-3 space-y-1">
-              <div className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
+            <div className="sticky top-[90px] space-y-3">
+              <div className="flex items-center gap-2 px-1 text-xs font-bold text-gray-500 uppercase tracking-wider">
                 <Filter className="w-3.5 h-3.5" /> Φίλτρα
               </div>
               {renderFacetSection('Κατηγορία', <Tag className="w-4 h-4 text-yellow-500/70" />, facets.katigoria, 'katigoria', filterKatigoria)}
@@ -283,11 +282,22 @@ function ResultsContent() {
             ) : (
               <div className="space-y-3">
                 {results.map((item) => (
-                  <div
+                  <BorderGlow
                     key={item.id}
-                    onClick={() => handleResultClick(item)}
-                    className="group bg-[#151518] border border-gray-800/40 hover:border-yellow-500/40 rounded-xl p-5 cursor-pointer transition-all hover:shadow-lg hover:shadow-yellow-500/5"
+                    backgroundColor="#151518"
+                    borderRadius={12}
+                    glowRadius={20}
+                    glowIntensity={0.8}
+                    edgeSensitivity={40}
+                    coneSpread={20}
+                    colors={['#eab308', '#a78bfa', '#f97316']}
+                    glowColor="45 90 65"
+                    fillOpacity={0.3}
                   >
+                    <div
+                      onClick={() => handleResultClick(item)}
+                      className="group p-5 cursor-pointer"
+                    >
                     {/* Header */}
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2.5">
@@ -321,6 +331,7 @@ function ResultsContent() {
                       />
                     )}
                   </div>
+                  </BorderGlow>
                 ))}
               </div>
             )}
@@ -373,7 +384,7 @@ function ResultsContent() {
             )}
 
             {/* No results */}
-            {!loading && results.length === 0 && query && (
+            {!loading && results.length === 0 && (query || hasActiveFilters) && (
               <div className="text-center py-20">
                 <Scale className="w-12 h-12 text-gray-700 mx-auto mb-4" />
                 <p className="text-lg text-gray-400 mb-2">Δεν βρέθηκαν αποτελέσματα</p>

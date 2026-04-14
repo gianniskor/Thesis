@@ -20,6 +20,7 @@ export default function App() {
 
   // UI States
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [showModalBody, setShowModalBody] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
 
   // Data States
@@ -36,6 +37,7 @@ export default function App() {
 
   useKeyboardShortcuts({
     onEscape: () => {
+      setShowModalBody(false);
       setIsSearchOpen(false);
       closePdf();
     },
@@ -62,15 +64,21 @@ export default function App() {
   // Η συνάρτηση που ρωτάει το FastAPI
   const handleSearch = async (searchQuery: string) => {
     setQuery(searchQuery);
-    if (!searchQuery.trim()) {
+    const hasFilters = activeFilters.katigoria.length > 0 || activeFilters.dikastirio.length > 0 || activeFilters.etos.length > 0;
+    if (!searchQuery.trim() && !hasFilters) {
       setResults([]);
+      // Reset facets to global
+      fetch('http://localhost:8000/api/facets')
+        .then(r => r.json())
+        .then(data => setFacets(data))
+        .catch(() => {});
       return;
     }
 
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set('q', searchQuery);
+      params.set('q', searchQuery.trim() || '*');
       params.set('rows', '10');
       activeFilters.katigoria.forEach(k => params.append('katigoria', k));
       activeFilters.dikastirio.forEach(d => params.append('dikastirio', d));
@@ -79,6 +87,22 @@ export default function App() {
       const res = await fetch(`http://localhost:8000/api/search?${params.toString()}`);
       const data = await res.json();
       setResults(data.results || []);
+
+      // Only update facet counts dynamically when there's a text query
+      if (searchQuery.trim() && data.facets) {
+        const parsePairs = (flat: any[]) => {
+          const result: Record<string, number> = {};
+          for (let i = 0; i < flat.length; i += 2) {
+            if (flat[i + 1] > 0) result[flat[i]] = flat[i + 1];
+          }
+          return result;
+        };
+        setFacets({
+          katigoria: parsePairs(data.facets.katigoria || []),
+          dikastirio: parsePairs(data.facets.dikastirio || []),
+          etos: parsePairs(data.facets.etos || []),
+        });
+      }
     } catch (error) {
       console.error("Σφάλμα αναζήτησης:", error);
     } finally {
@@ -86,9 +110,20 @@ export default function App() {
     }
   };
 
+  // Stagger modal body after search bar opens
+  useEffect(() => {
+    if (isSearchOpen) {
+      const timer = setTimeout(() => setShowModalBody(true), 150);
+      return () => clearTimeout(timer);
+    } else {
+      setShowModalBody(false);
+    }
+  }, [isSearchOpen]);
+
   // Re-run search when filters change
   useEffect(() => {
-    if (query.trim()) handleSearch(query);
+    const hasFilters = activeFilters.katigoria.length > 0 || activeFilters.dikastirio.length > 0 || activeFilters.etos.length > 0;
+    if (query.trim() || hasFilters) handleSearch(query);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFilters]);
 
@@ -106,26 +141,25 @@ export default function App() {
       <div className="absolute top-[20%] left-[-10%] w-[600px] h-[600px] bg-purple-500/10 blur-[150px] rounded-full pointer-events-none" />
 
       {/* --- NAVBAR --- */}
-      <nav className="flex items-center px-8 py-6 relative z-10 max-w-7xl mx-auto">
-        <div className="flex-1 flex items-center gap-3">
-          <Scale className="w-8 h-8 text-white" />
-          <span className="text-xl font-bold tracking-wider">PLACEHOLDER</span>
-        </div>
+      <nav className="relative z-10">
+        <div className="flex items-center px-8 py-6 max-w-7xl mx-auto">
+          <div className="flex-1 flex items-center gap-3">
+            <Scale className="w-8 h-8 text-white" />
+            <span className="text-xl font-bold tracking-wider">PLACEHOLDER</span>
+          </div>
 
-        <div className="hidden md:flex bg-[#1a1a1c] border border-gray-800 rounded-full shadow-lg">
-          <button className="px-5 py-2 rounded-full bg-white text-black text-sm font-medium">Αρχική</button>
-          <button className="px-5 py-2 rounded-full text-gray-400 hover:text-white transition text-sm font-medium">Αρχείο</button>
-          <button className="px-5 py-2 rounded-full text-gray-400 hover:text-white transition text-sm font-medium" onClick={() => setShowChatbot(true)}>AI Chatbot</button>
-          <button className="px-5 py-2 rounded-full text-gray-400 hover:text-white transition text-sm font-medium">N/A</button>
-        </div>
+          <div className="hidden md:flex bg-[#1a1a1c]/80 backdrop-blur-sm border border-gray-800 rounded-full shadow-lg p-1">
+            <button className="px-6 py-2.5 rounded-full bg-white text-black text-sm font-medium">Αρχική</button>
+            <button onClick={() => router.push('/results')} className="px-6 py-2.5 rounded-full text-gray-400 hover:text-white transition text-sm font-medium">Αρχείο</button>
+            <button className="px-6 py-2.5 rounded-full text-gray-400 hover:text-white transition text-sm font-medium" onClick={() => setShowChatbot(true)}>AI Chatbot</button>
+            <button className="px-6 py-2.5 rounded-full text-gray-400 hover:text-white transition text-sm font-medium">N/A</button>
+          </div>
 
-        <div className="flex-1 flex items-center justify-end gap-6">
-          <button onClick={() => setIsSearchOpen(true)} className="text-gray-300 hover:text-white transition">
-            <Search className="w-5 h-5" />
-          </button>
-          <button className="text-gray-300 hover:text-white transition">
-            <User className="w-5 h-5" />
-          </button>
+          <div className="flex-1 flex items-center justify-end gap-6">
+            <button className="text-gray-300 hover:text-white transition">
+              <User className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -170,7 +204,7 @@ export default function App() {
           <InteractiveProductCard
             title="Διοικητικό Δίκαιο"
             imageUrl="/DioikitikoLogo.png"
-            className="w-48 -translate-y-4"
+            className="w-48"
             onClick={() => router.push('/results?katigoria=Διοικητικό&q=Διοικητικό')}
           />
         </div>
@@ -178,11 +212,11 @@ export default function App() {
 
       {/* --- SEARCH MODAL --- */}
       {isSearchOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center pt-[10vh] px-4 backdrop-blur-sm bg-black/40">
-          <div className="absolute inset-0" onClick={() => setIsSearchOpen(false)}></div>
+        <div className="fixed inset-0 z-50 flex flex-col items-center pt-[30vh] px-4 backdrop-blur-sm bg-black/40 modal-backdrop-enter">
+          <div className="absolute inset-0" onClick={() => { setShowModalBody(false); setIsSearchOpen(false); }}></div>
 
           {/* Search Bar */}
-          <div className="relative w-full max-w-2xl bg-[#1e1e1e] border border-gray-800/60 rounded-2xl shadow-2xl overflow-hidden text-gray-200" onClick={e => e.stopPropagation()}>
+          <div className="relative w-full max-w-2xl bg-[#1e1e1e] border border-gray-800/60 rounded-full shadow-2xl overflow-hidden text-gray-200 search-bar-enter" onClick={e => e.stopPropagation()}>
             <div className="flex items-center px-5 py-4">
               <Search className="w-5 h-5 text-yellow-500/80 mr-3 shrink-0" />
               <input
@@ -191,10 +225,18 @@ export default function App() {
                 value={query}
                 onChange={(e) => handleSearch(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && query.trim()) {
-                    addRecentSearch(query);
-                    setIsSearchOpen(false);
-                    router.push(`/results?q=${encodeURIComponent(query)}`);
+                  if (e.key === 'Enter') {
+                    const hasFilters = activeFilters.katigoria.length > 0 || activeFilters.dikastirio.length > 0 || activeFilters.etos.length > 0;
+                    if (query.trim() || hasFilters) {
+                      if (query.trim()) addRecentSearch(query);
+                      setIsSearchOpen(false);
+                      const p = new URLSearchParams();
+                      if (query.trim()) p.set('q', query);
+                      activeFilters.katigoria.forEach(k => p.append('katigoria', k));
+                      activeFilters.dikastirio.forEach(d => p.append('dikastirio', d));
+                      activeFilters.etos.forEach(e => p.append('etos', e));
+                      router.push(`/results?${p.toString()}`);
+                    }
                   }
                 }}
                 placeholder="Αναζήτηση για αποφάσεις, δικαστήρια, θέματα..."
@@ -209,7 +251,12 @@ export default function App() {
           <div className="h-3" />
 
           {/* Results Body */}
-          <div className="relative w-full max-w-2xl bg-[#1e1e1e] border border-gray-800/60 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-gray-200" onClick={e => e.stopPropagation()}>
+          <div
+            className={`relative w-full max-w-2xl bg-[#1e1e1e] border border-gray-800/60 rounded-3xl shadow-2xl overflow-hidden flex flex-col text-gray-200 transition-all duration-300 ease-out ${
+              showModalBody ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+            }`}
+            onClick={e => e.stopPropagation()}
+          >
 
             {/* Filter Chips */}
             <div className="flex flex-col gap-2 px-5 pt-4 pb-2">
@@ -310,8 +357,8 @@ export default function App() {
                 </div>
               )}
 
-              {/* Static UI when no query */}
-              {!query && !loading && (
+              {/* Static UI when no query and no filters */}
+              {!query && !loading && !hasActiveFilters && (
                 <div className="space-y-5">
                   {/* Recent Searches */}
                   {recentSearches.length > 0 && (
@@ -384,7 +431,7 @@ export default function App() {
               )}
 
               {/* Dynamic results Solr */}
-              {query && !loading && results.length > 0 && (
+              {(query || hasActiveFilters) && !loading && results.length > 0 && (
                 <div>
                   <p className="text-xs text-gray-500 mb-2 px-1">
                     Αποτελέσματα <span className="text-gray-600 ml-1">
@@ -417,24 +464,29 @@ export default function App() {
                 </div>
               )}
 
-              {query && !loading && results.length > 0 && (
+              {(query || hasActiveFilters) && !loading && results.length > 0 && (
                 <div className="mt-3 text-center">
                   <button
                     onClick={() => {
-                      addRecentSearch(query);
+                      if (query.trim()) addRecentSearch(query);
                       setIsSearchOpen(false);
-                      router.push(`/results?q=${encodeURIComponent(query)}`);
+                      const p = new URLSearchParams();
+                      if (query.trim()) p.set('q', query);
+                      activeFilters.katigoria.forEach(k => p.append('katigoria', k));
+                      activeFilters.dikastirio.forEach(d => p.append('dikastirio', d));
+                      activeFilters.etos.forEach(e => p.append('etos', e));
+                      router.push(`/results?${p.toString()}`);
                     }}
                     className="text-xs text-yellow-500 hover:text-yellow-400 hover:underline transition-colors"
                   >
-                    Δείτε όλα τα αποτελέσματα για &ldquo;{query}&rdquo;
+                    Δείτε όλα τα αποτελέσματα{query ? <> για &ldquo;{query}&rdquo;</> : ''}
                   </button>
                 </div>
               )}
 
-              {query && !loading && results.length === 0 && (
+              {(query || hasActiveFilters) && !loading && results.length === 0 && (
                 <div className="text-center text-gray-500 py-10 text-sm">
-                  Δεν βρέθηκαν αποφάσεις για &ldquo;{query}&rdquo;
+                  {query ? <>Δεν βρέθηκαν αποφάσεις για &ldquo;{query}&rdquo;</> : 'Δεν βρέθηκαν αποφάσεις με τα επιλεγμένα φίλτρα'}
                 </div>
               )}
 

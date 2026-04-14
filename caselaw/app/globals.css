@@ -53,3 +53,19 @@ mark {
   border-radius: 2px;
   padding: 0 2px;
 }
+
+/* Search modal animations */
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes search-bar-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal-backdrop-enter {
+  animation: modal-backdrop-in 0.2s ease-out both;
+}
+.search-bar-enter {
+  animation: search-bar-in 0.25s ease-out both;
+}

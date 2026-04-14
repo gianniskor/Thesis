@@ -51,8 +51,6 @@ TMP_DIR = Path("temporary/cl_pdfs")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
-
-
 def extract_text(pdf_path: Path) -> str:
     doc = fitz.open(str(pdf_path))
     return "\n".join(page.get_text() for page in doc)
@@ -99,7 +97,6 @@ def root():
 
 # TODO: Add a Dev Account Login with MFA and a Dashboard to See Uploaded PDFs, Search Queries, and Analytics
 # TODO: Reconsider the way the PDFs are stored and indexed (katigoria part, should probably be changed to dikastirio, and maybe etos so it can be more automated)
-# FIXME: fix the title extraction, cause sometimes its not only one line, and sometimes its not the first line
 @app.post("/api/index")
 async def index_pdf(
     file: UploadFile = File(...),
@@ -146,7 +143,7 @@ async def index_pdf(
 
 @app.get("/api/search")
 async def search(
-    q: str,
+    q: str = "*",
     dikastirio: list[str] = Query(default=None),
     etos: list[int] = Query(default=None),
     katigoria: list[str] = Query(default=None),
@@ -161,8 +158,13 @@ async def search(
     if katigoria:
         fq.append('katigoria:(' + ' OR '.join(f'"{k}"' for k in katigoria) + ')')
 
+    # Build Solr query
+    solr_q = q.strip()
+    if not solr_q or solr_q == "*":
+        solr_q = "*:*"
+
     params = {
-        "q":              q,
+        "q":              solr_q,
         "defType":        "edismax",
         "qf":             "titlos^3 arithmos^5 periexomeno",
         "hl":             "true",
