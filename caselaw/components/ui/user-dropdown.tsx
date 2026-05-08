@@ -22,11 +22,11 @@ interface UserDropdownProps {
 
 function getInitials(displayName: string | null | undefined, email: string): string {
   if (displayName) {
-    const parts = displayName.trim().split(" ");
+    const parts = displayName.trim().split(" ").filter((p) => p.length > 0);
     if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    return parts[0][0].toUpperCase();
+    if (parts.length === 1) return parts[0][0].toUpperCase();
   }
-  return email[0].toUpperCase();
+  return (email[0] ?? "?").toUpperCase();
 }
 
 export function UserDropdown({ email, displayName, avatarUrl, onSignOut }: UserDropdownProps) {
