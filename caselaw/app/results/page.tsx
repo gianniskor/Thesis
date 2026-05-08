@@ -4,10 +4,12 @@ import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Search, FileText, X, Scale, Filter,
-  User, Landmark, Calendar, Tag
+  Landmark, Calendar, Tag
 } from 'lucide-react';
 import { PdfViewer } from '@/components/PdfViewer';
 import BorderGlow from '@/components/BorderGlow';
+import { AuthButton } from '@/components/AuthButton';
+import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation';
 import { buildPdfUrl, parseFacets } from '@/lib/api';
 import type { SearchResult, FacetItem, Facets } from '@/lib/types';
 
@@ -162,10 +164,12 @@ function ResultsContent() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0d0d0f] text-white font-sans relative overflow-x-hidden selection:bg-yellow-500/30">
-      {/* Background Gradients */}
-      <div className="absolute top-[-10%] right-[-5%] w-[800px] h-[800px] bg-yellow-500/10 blur-[150px] rounded-full pointer-events-none" />
-      <div className="absolute top-[20%] left-[-10%] w-[600px] h-[600px] bg-purple-500/10 blur-[150px] rounded-full pointer-events-none" />
+    <div className="min-h-screen text-white font-sans relative overflow-x-hidden selection:bg-yellow-500/30">
+      {/* Animated background */}
+      <div className="fixed inset-0 -z-10">
+        <BackgroundGradientAnimation interactive />
+        <div className="absolute inset-0 bg-black/50" />
+      </div>
 
       {/* --- NAVBAR --- */}
       <nav className="sticky top-0 z-30 backdrop-blur-md ">
@@ -183,9 +187,7 @@ function ResultsContent() {
           </div>
 
           <div className="flex-1 flex items-center justify-end gap-6">
-            <button className="text-gray-300 hover:text-white transition">
-              <User className="w-5 h-5" />
-            </button>
+            <AuthButton />
           </div>
         </div>
       </nav>
@@ -410,7 +412,7 @@ function ResultsContent() {
 export default function ResultsPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0d0d0f] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-500">Φόρτωση...</div>
       </div>
     }>

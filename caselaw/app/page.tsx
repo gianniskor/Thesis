@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Search, User, Command, X,
+  Search, Command, X,
   Clock, FileText,
   Scale, Filter, ChevronDown,
   ArrowRight, Calendar, Building2,
@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { InteractiveProductCard } from '@/components/ui/card-7';
 import { PdfViewer } from '@/components/PdfViewer';
+import { AuthButton } from '@/components/AuthButton';
+import { BackgroundGradientAnimation } from '@/components/ui/background-gradient-animation';
 import { useKeyboardShortcuts, usePdfViewer, useRecentSearches } from '@/lib/hooks';
 import { buildPdfUrl } from '@/lib/api';
 import type { SearchResult } from '@/lib/types';
@@ -134,11 +136,13 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0d0d0f] text-white font-sans relative overflow-x-hidden selection:bg-yellow-500/30">
+    <div className="min-h-screen text-white font-sans relative overflow-x-hidden selection:bg-yellow-500/30">
 
-      {/* Background Gradients */}
-      <div className="absolute top-[-10%] right-[-5%] w-[800px] h-[800px] bg-yellow-500/10 blur-[150px] rounded-full pointer-events-none" />
-      <div className="absolute top-[20%] left-[-10%] w-[600px] h-[600px] bg-purple-500/10 blur-[150px] rounded-full pointer-events-none" />
+      {/* Animated background */}
+      <div className="fixed inset-0 -z-10">
+        <BackgroundGradientAnimation interactive />
+        <div className="absolute inset-0 bg-black/50" />
+      </div>
 
       {/* --- NAVBAR --- */}
       <nav className="relative z-10">
@@ -156,9 +160,7 @@ export default function App() {
           </div>
 
           <div className="flex-1 flex items-center justify-end gap-6">
-            <button className="text-gray-300 hover:text-white transition">
-              <User className="w-5 h-5" />
-            </button>
+            <AuthButton />
           </div>
         </div>
       </nav>

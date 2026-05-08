@@ -8,7 +8,6 @@ import re
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 
-# TODO: Clean Up the Code(kinda did?).
 app = FastAPI(title="CaseLaw API")
 # app.mount("/pdf", StaticFiles(directory="pdf"), name="pdf")
 
